@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smartrun"
+version = "0.2.0"
+description = "Incremental, cached, parallel (CPU/process/GPU) execution of ordinary Python code"
+requires-python = ">=3.9"
+dependencies = ["cloudpickle"]
+[project.optional-dependencies]
+numpy = ["numpy"]
+[project.scripts]
+smartrun = "smartrun.__main__:main"
+[tool.setuptools]
+packages = ["smartrun"]

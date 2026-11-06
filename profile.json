@@ -1,0 +1,50 @@
+[
+    {
+        "timestamp": "2026-11-06 14:12:18",
+        "files_count": 3,
+        "mode": "sequential",
+        "execution_time_seconds": 0.3848
+    },
+    {
+        "timestamp": "2026-11-06 14:12:33",
+        "files_count": 3,
+        "mode": "sequential",
+        "execution_time_seconds": 0.0738
+    },
+    {
+        "timestamp": "2026-11-06 14:12:56",
+        "files_count": 3,
+        "mode": "sequential",
+        "execution_time_seconds": 0.4082
+    },
+    {
+        "timestamp": "2026-11-06 14:13:13",
+        "files_count": 3,
+        "mode": "sequential",
+        "execution_time_seconds": 0.0102
+    },
+    {
+        "timestamp": "2026-11-06 14:13:52",
+        "files_count": 3,
+        "mode": "parallel",
+        "execution_time_seconds": 0.3596
+    },
+    {
+        "timestamp": "2026-11-06 14:14:03",
+        "files_count": 3,
+        "mode": "parallel",
+        "execution_time_seconds": 0.013
+    },
+    {
+        "timestamp": "2026-11-06 14:14:22",
+        "files_count": 3,
+        "mode": "parallel",
+        "execution_time_seconds": 0.3001
+    },
+    {
+        "timestamp": "2026-11-06 14:14:33",
+        "files_count": 3,
+        "mode": "parallel",
+        "execution_time_seconds": 0.0071
+    }
+]
