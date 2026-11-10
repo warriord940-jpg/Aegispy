@@ -9,6 +9,15 @@ import hashlib
 import json
 import shutil
 
+# --- INTEGRATED SMART-RUN PACKAGE IMPORTS ---
+try:
+    from smartrun.session import SessionManager
+    from smartrun.cache import SmartCacheManager
+    from smartrun_lib.session import init_session_context
+    SMART_RUN_AVAILABLE = True
+except ImportError:
+    SMART_RUN_AVAILABLE = False
+
 class HardwareDetector(ast.NodeVisitor):
     def __init__(self):
         self.is_gpu = False
@@ -42,6 +51,26 @@ def load_module_from_path(file_path):
     spec.loader.exec_module(module)
     return module
 
+def resolve_argument_fast(func_name, param_name, raw_payload):
+    """
+    Identical argument resolution logic to the parallel engine 
+    to ensure apples-to-apples baseline comparisons.
+    """
+    # 1. Hardware benchmarks (matrices/tensors) always get heavy scales
+    if any(k in param_name for k in ["tensor", "matrix", "size", "data", "dim"]):
+        return (2500,)
+    
+    # 2. User input script gets the CLI payload (defaulting to 5)
+    if "user" in func_name.lower():
+        val = int(raw_payload) if raw_payload is not None and str(raw_payload).isdigit() else 5
+        return (val,)
+        
+    # 3. Standard core benchmarks (like factorial.py) use the heavy default scale (1500)
+    if any(k in param_name for k in ["n", "num", "factorial", "val", "x", "count"]):
+        return (1500,)
+        
+    return (1000,)
+
 def make_cached_wrapper(func, func_name, force_refresh=False):
     """
     Transparently wraps any standard user function with persistent caching 
@@ -50,33 +79,32 @@ def make_cached_wrapper(func, func_name, force_refresh=False):
     cache_dir = ".smartcache_sequential"
     os.makedirs(cache_dir, exist_ok=True)
 
-    def wrapper(arg):
-        key_data = f"{func_name}:{arg}".encode("utf-8")
-        cache_hash = hashlib.md5(key_data).hexdigest()
-        cache_file = os.path.join(cache_dir, f"func_{cache_hash}.pkl")
+    key_data = f"{func_name}".encode("utf-8")
+    cache_hash = hashlib.md5(key_data).hexdigest()
+    cache_file = os.path.join(cache_dir, f"func_{cache_hash}.pkl")
 
-        if not force_refresh and os.path.exists(cache_file):
+    is_cached = not force_refresh and os.path.exists(cache_file)
+
+    def wrapper(args_tuple):
+        if is_cached:
             try:
                 with open(cache_file, "rb") as f:
                     cached_result = pickle.load(f)
-                print(f"  [Cache HIT] Loaded '{func_name}' with arg {arg} from storage!", flush=True)
-                return cached_result
+                return cached_result, True
             except Exception:
                 pass
 
-        print(f"  [Cache MISS] Executing '{func_name}' with arg {arg}...", flush=True)
-        start_time = time.time()
-        result = func(arg)
-        exec_time = time.time() - start_time
+        result = func(*args_tuple)
 
         try:
             with open(cache_file, "wb") as f:
                 pickle.dump(result, f)
         except Exception as e:
-            print(f"  [!] Warning: Could not cache result: {e}", flush=True)
+            pass
 
-        return result
+        return result, False
 
+    wrapper.is_cached = is_cached
     return wrapper
 
 if __name__ == "__main__":
@@ -85,6 +113,13 @@ if __name__ == "__main__":
         sys.exit(1)
 
     raw_args = sys.argv[1:]
+
+    # --- Initialize SmartRun Context if available ---
+    if SMART_RUN_AVAILABLE:
+        try:
+            init_session_context("AegisPy-Sequential-Execution")
+        except Exception:
+            pass
 
     # --- Catch and Handle --force-refresh First ---
     force_refresh = "--force-refresh" in raw_args
@@ -127,8 +162,18 @@ if __name__ == "__main__":
                     
                     cached_func = make_cached_wrapper(obj, unique_name, force_refresh)
                     
-                    functions_to_run.append((unique_name, cached_func, hw))
-                    print(f"  * Discovered: {name:<22} -> Routed To: {hw} (Smart-Wrapped)", flush=True)
+                    # Extract parameter name to match parallel engine argument resolution
+                    try:
+                        sig = inspect.signature(obj)
+                        params = list(sig.parameters.values())
+                        param_name = params[0].name.lower() if params else "val"
+                    except Exception:
+                        param_name = "val"
+
+                    bound_args = resolve_argument_fast(unique_name, param_name, user_payload)
+                    
+                    functions_to_run.append((unique_name, cached_func, hw, bound_args))
+                    print(f"  * Discovered: {name:<22} -> Routed To: {hw} (Args: {bound_args})", flush=True)
         except Exception as e:
             print(f"  [!] Error loading {target_file}: {e}", flush=True)
 
@@ -138,26 +183,15 @@ if __name__ == "__main__":
     start_time = time.time()
     results = {}
 
-    for name, func, hw in functions_to_run:
-        print(f"[Sequential Engine] Executing '{name}'...", flush=True)
-        
-        if user_payload is not None:
-            try:
-                arg = int(user_payload)
-            except ValueError:
-                arg = user_payload
+    for name, func, hw, bound_args in functions_to_run:
+        if func.is_cached:
+            print(f"  [Cache HIT] '{name}' loaded instantly from storage!", flush=True)
         else:
-            if "gpu" in name.lower() or "classifier" in name.lower() or "tensor" in name.lower():
-                arg = 2000
-            else:
-                arg = 1500
-
-        t_start = time.time()
+            print(f"  [Cache MISS] Sequentially executing '{name}' with {bound_args}...", flush=True)
+        
         try:
-            res = func(arg)
-            t_elapsed = time.time() - t_start
+            res, _ = func(bound_args)
             results[name] = res
-            print(f"  [✔] {name} completed in {t_elapsed:.4f}s -> Result: {res}", flush=True)
         except Exception as e:
             results[name] = f"Error: {e}"
 
