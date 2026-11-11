@@ -24,4 +24,4 @@ Benchmark Performance
 Execution Engine         Initial Run (Cache Miss)  Re-Run (Cache Hit / Short-Circuit)  Core Architecture & Hardware Routing
 Pure Python                       0.72s                         0.77s                   Standard sequential execution with zero caching or parallel optimization.
 Sequential Cached Engine          0.75s                         0.01s                   Sequential file loading with memory storage and disk retrieval.
-AegisPy Parallel Engine           0.66s                         0.01s                   Concurrent ThreadPool execution + Dynamic AST CPU/GPU routing + Instant cache short-circuit.
+AegisPy Parallel Engine           0.66s                         0.01s                   Concurrent ThreadPool execution + Dynamic AST CPU/GPU routing + Instant                                                                                            cache short-circuit.
